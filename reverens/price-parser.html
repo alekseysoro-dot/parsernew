@@ -686,13 +686,6 @@
   .empty-state p { font-size: 14px; }
 
 /* Drawer */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  pointer-events: none;
-}
-.drawer-overlay.open { pointer-events: auto; }
 
 .drawer {
   position: fixed;
@@ -1214,10 +1207,16 @@ function deleteProduct(idx) {
 function openDrawer(idx) {
   activeProductIndex = idx;
   drawerOpen = true;
+  document.getElementById('productDrawer').classList.add('open');
   renderTable(document.getElementById('searchInput').value.toLowerCase());
-  // drawer panel logic added in Task 3
+  // drawer content populated in Task 3
 }
-function closeDrawer() { activeProductIndex = null; drawerOpen = false; }
+function closeDrawer() {
+  activeProductIndex = null;
+  drawerOpen = false;
+  document.getElementById('productDrawer').classList.remove('open');
+  renderTable(document.getElementById('searchInput').value.toLowerCase());
+}
 
 function selectStore(el, key) {
   document.querySelectorAll('.store-item').forEach(i => i.classList.remove('active'));
