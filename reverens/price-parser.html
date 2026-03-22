@@ -1132,6 +1132,49 @@ const products = [
   { name: 'Кроссовки Adidas Ultraboost', sku: 'ADD-UB-BLK', store: 'Wildberries', storeKey: 'wb', icon: 'W', color: '#6c5ce7', emoji: '👟', price: 12490, oldPrice: 11490, minPrice: 9990, targetPrice: 9490, change: 8.7, time: '1 мин' },
 ];
 
+function generateMockHistory(currentPrice) {
+  const points = [];
+  let price = Math.round(currentPrice * 1.08);
+  for (let i = 0; i < 30; i++) {
+    const delta = (Math.random() - 0.55) * 0.03;
+    price = Math.round(price * (1 + delta));
+    points.push(price);
+  }
+  points[29] = currentPrice;
+  return points;
+}
+
+function renderChart(svgEl, priceHistory) {
+  const W = 340, H = 120, PAD = 8;
+  const min = Math.min(...priceHistory) - PAD;
+  const max = Math.max(...priceHistory) + PAD;
+  const xs = priceHistory.map((_, i) => (i / (priceHistory.length - 1)) * W);
+  const ys = priceHistory.map(v => H - ((v - min) / (max - min)) * H);
+
+  const linePoints = xs.map((x, i) => `${x},${ys[i]}`).join(' ');
+  const areaPoints = `${xs[0]},${H} ` + linePoints + ` ${xs[xs.length-1]},${H}`;
+
+  svgEl.innerHTML = `
+    <defs>
+      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6c5ce7" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#6c5ce7" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polyline points="${areaPoints}" fill="url(#chartGrad)" stroke="none"/>
+    <polyline points="${linePoints}" fill="none" stroke="#6c5ce7" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${xs[xs.length-1]}" cy="${ys[ys.length-1]}" r="3" fill="#6c5ce7"/>
+  `;
+}
+
+const STORE_PRICES = {
+  wb:     { name: 'Wildberries',   mult: 1.00 },
+  ozon:   { name: 'Ozon',          mult: 1.05 },
+  ym:     { name: 'Яндекс Маркет', mult: 1.07 },
+  dns:    { name: 'DNS',           mult: 1.03 },
+  mvideo: { name: 'МВидео',        mult: 1.09 },
+};
+
 let currentStore = 'all';
 let parsingInterval = null;
 
@@ -1205,11 +1248,44 @@ function deleteProduct(idx) {
 }
 
 function openDrawer(idx) {
+  const p = products[idx];
   activeProductIndex = idx;
   drawerOpen = true;
+
+  // Header
+  document.getElementById('drawerTitle').textContent = p.name;
+  document.getElementById('drawerSubtitle').textContent = `${p.sku} · ${p.store}`;
+
+  // Price block
+  document.getElementById('drawerPrice').textContent = formatPrice(p.price);
+  const deltaRub = p.price - p.oldPrice;
+  const sign = deltaRub <= 0 ? '▼' : '▲';
+  const color = deltaRub <= 0 ? 'var(--green)' : 'var(--red)';
+  const deltaVal = document.getElementById('drawerDeltaValue');
+  const deltaPct = document.getElementById('drawerDeltaPct');
+  deltaVal.textContent = `${sign} ${Math.abs(deltaRub).toLocaleString('ru')} ₽`;
+  deltaVal.style.color = color;
+  deltaPct.textContent = `${p.change}% за 7 дней`;
+  deltaPct.style.color = color;
+
+  // Chart
+  const history = generateMockHistory(p.price);
+  renderChart(document.getElementById('drawerChart'), history);
+
+  // Store prices
+  const storesHtml = Object.entries(STORE_PRICES).map(([key, s]) => {
+    const storePrice = Math.round(p.price * s.mult);
+    const isBest = key === p.storeKey;
+    return `<div class="store-price-row ${isBest ? 'best' : ''}">
+      <span class="store-price-name">${s.name}</span>
+      <span class="store-price-val">${formatPrice(storePrice)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('drawerStorePrices').innerHTML = storesHtml;
+
+  // Open
   document.getElementById('productDrawer').classList.add('open');
   renderTable(document.getElementById('searchInput').value.toLowerCase());
-  // drawer content populated in Task 3
 }
 function closeDrawer() {
   activeProductIndex = null;
