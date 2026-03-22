@@ -666,9 +666,10 @@
   }
 
   /* Active row */
-  tbody tr.active-row {
+  tbody tr.active-row,
+  tbody tr.active-row:hover {
     border-left: 2px solid var(--accent);
-    background: rgba(108, 92, 231, 0.06);
+    background: rgba(108, 92, 231, 0.10);
   }
 
   /* Empty state */
@@ -1029,12 +1030,21 @@ function renderTable(filter = '') {
 
 function deleteProduct(idx) {
   products.splice(idx, 1);
-  if (activeProductIndex === idx) closeDrawer();
+  if (activeProductIndex === idx) {
+    closeDrawer();
+  } else if (activeProductIndex !== null && idx < activeProductIndex) {
+    activeProductIndex--;
+  }
   renderTable(document.getElementById('searchInput').value.toLowerCase());
   showToast('Товар удалён');
 }
 
-function openDrawer(idx) { /* implemented in Task 3 */ }
+function openDrawer(idx) {
+  activeProductIndex = idx;
+  drawerOpen = true;
+  renderTable(document.getElementById('searchInput').value.toLowerCase());
+  // drawer panel logic added in Task 3
+}
 function closeDrawer() { activeProductIndex = null; drawerOpen = false; }
 
 function selectStore(el, key) {
