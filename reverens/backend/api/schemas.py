@@ -74,3 +74,18 @@ class SettingsUpdate(BaseModel):
     email: str | None = None
     tg_chat_id: str | None = None
     threshold: int = 5
+
+
+# ── Parse ────────────────────────────────────────────────────────────────────
+
+class ParseRunOut(BaseModel):
+    run_id: str
+    status: str
+    total_products: int
+
+
+class ParseStatusOut(BaseModel):
+    run_id: str
+    status: str
+    updated: int | None = None
+    error: str | None = None
