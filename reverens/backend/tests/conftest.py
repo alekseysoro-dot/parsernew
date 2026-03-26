@@ -10,6 +10,7 @@ os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["API_KEY"] = "test-key"
 os.environ["CORS_ORIGINS"] = "http://localhost"
 os.environ["APIFY_API_TOKEN"] = "test-apify-token"
+os.environ["TESTING"] = "1"
 
 from api.db import Base, get_db
 from api.main import app

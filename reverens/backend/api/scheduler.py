@@ -9,16 +9,12 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import sessionmaker
-
 from api.apify_client import start_actor_run, check_run_status, fetch_dataset_items
 from api.config import settings
-from api.db import engine
+from api.db import SessionLocal
 from api.models import PriceHistory, Product, Seller
 
 logger = logging.getLogger(__name__)
-
-SessionLocal = sessionmaker(bind=engine)
 
 _POLL_INTERVAL = 10  # seconds between status checks
 _POLL_TIMEOUT = 300  # 5 minutes max wait
