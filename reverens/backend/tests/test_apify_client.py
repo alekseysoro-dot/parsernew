@@ -107,8 +107,7 @@ class TestFetchDatasetItems:
             {"url": "https://wildberries.ru/catalog/1", "price": 999},
             {"url": "https://wildberries.ru/catalog/2", "price": 1299},
         ]
-        response_payload = {"items": items}
-        mock_resp = _make_response(200, response_payload)
+        mock_resp = _make_response(200, items)
 
         with patch("api.apify_client.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()

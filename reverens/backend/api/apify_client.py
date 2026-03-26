@@ -20,7 +20,7 @@ async def start_actor_run(token: str, urls: list[str]) -> dict:
     params = {"token": token}
     payload = {"startUrls": [{"url": u} for u in urls]}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(endpoint, params=params, json=payload)
 
     if response.status_code == 401:
@@ -44,7 +44,7 @@ async def check_run_status(token: str, run_id: str) -> dict:
     endpoint = f"{BASE_URL}/actor-runs/{run_id}"
     params = {"token": token}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15) as client:
         response = await client.get(endpoint, params=params)
 
     response.raise_for_status()
@@ -64,8 +64,8 @@ async def fetch_dataset_items(token: str, dataset_id: str) -> list[dict]:
     endpoint = f"{BASE_URL}/datasets/{dataset_id}/items"
     params = {"token": token, "format": "json"}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(endpoint, params=params)
 
     response.raise_for_status()
-    return response.json()["items"]
+    return response.json()
