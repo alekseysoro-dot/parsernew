@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     api_key: str = "dev-key"
     cors_origins: str = "http://localhost"
     apify_api_token: str = ""
+    apify_keyword: str = ""
 
     class Config:
         env_file = ".env"

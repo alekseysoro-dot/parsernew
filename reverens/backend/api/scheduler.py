@@ -20,23 +20,23 @@ _POLL_INTERVAL = 10  # seconds between status checks
 _POLL_TIMEOUT = 300  # 5 minutes max wait
 
 
-def _extract_article(url: str) -> str | None:
-    match = re.search(r"/catalog/(\d+)", url)
-    return match.group(1) if match else None
+def _parse_price(raw: str) -> int | None:
+    """Extract integer price from scrapestorm format like '29 398 ₽'."""
+    digits = re.sub(r"[^\d]", "", str(raw))
+    return int(digits) if digits else None
 
 
 async def scheduled_parse() -> None:
-    """Start Apify Actor for all products, wait for results, write to DB."""
+    """Start Apify Actor for keyword search, wait for results, write to DB."""
+    keyword = settings.apify_keyword
+    if not keyword:
+        logger.warning("APIFY_KEYWORD not configured, skipping scheduled parse")
+        return
+
     db = SessionLocal()
     try:
-        products = db.query(Product).all()
-        urls = [p.wb_url for p in products if p.wb_url]
-        if not urls:
-            logger.info("No products to parse")
-            return
-
-        logger.info(f"Starting scheduled parse for {len(urls)} products")
-        result = await start_actor_run(settings.apify_api_token, urls)
+        logger.info(f"Starting scheduled parse with keyword: {keyword}")
+        result = await start_actor_run(settings.apify_api_token, keyword)
         run_id = result["run_id"]
 
         elapsed = 0
@@ -66,41 +66,41 @@ async def scheduled_parse() -> None:
 
 
 def _save_prices(items: list[dict], db) -> int:
-    """Parse Apify items and write to price_history."""
+    """Save all scrapestorm results: auto-create Products, Sellers, write prices."""
     written = 0
     for item in items:
-        url = item.get("url", "")
-        article = _extract_article(url)
+        article = str(item.get("product_id", ""))
         if not article:
-            logger.warning(f"Could not extract article from URL: {url}")
             continue
 
-        price = item.get("price") or item.get("salePriceU")
+        price = _parse_price(item.get("current_price", ""))
         if not price:
             logger.warning(f"No price for article {article}")
             continue
 
         product = db.query(Product).filter(Product.wb_article == article).first()
         if not product:
-            logger.warning(f"Product with article {article} not found in DB")
-            continue
+            product = Product(
+                name=item.get("name", ""),
+                wb_article=article,
+                wb_url=item.get("product_url", ""),
+            )
+            db.add(product)
+            db.flush()
 
-        supplier_id = str(item.get("supplierId", ""))
-        supplier_name = item.get("supplierName", "Unknown")
+        supplier_name = item.get("supplier", "Unknown")
 
         seller = (
             db.query(Seller)
-            .filter(Seller.product_id == product.id, Seller.seller_id == supplier_id)
+            .filter(Seller.product_id == product.id, Seller.seller_name == supplier_name)
             .first()
         )
         if not seller:
-            seller = Seller(product_id=product.id, seller_name=supplier_name, seller_id=supplier_id)
+            seller = Seller(product_id=product.id, seller_name=supplier_name, seller_id=supplier_name)
             db.add(seller)
             db.flush()
-        elif seller.seller_name != supplier_name:
-            seller.seller_name = supplier_name
 
-        db.add(PriceHistory(seller_id=seller.id, price=int(price)))
+        db.add(PriceHistory(seller_id=seller.id, price=price))
         written += 1
 
     db.commit()

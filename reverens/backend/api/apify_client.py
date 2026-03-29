@@ -1,14 +1,18 @@
 # api/apify_client.py
-"""Thin async HTTP client for the Apify API."""
+"""Thin async HTTP client for the Apify API (scrapestorm WB product scraper)."""
 
 import httpx
 
 BASE_URL = "https://api.apify.com/v2"
-ACTOR_ID = "junglee~wildberries-scraper"
+ACTOR_ID = "scrapestorm~wildberries-product-scraper---cheap-deshyovyy-vayldberriz"
 
 
-async def start_actor_run(token: str, urls: list[str]) -> dict:
-    """Start an Apify actor run for the given URLs.
+async def start_actor_run(token: str, keyword: str) -> dict:
+    """Start an Apify actor run for the given search keyword.
+
+    Args:
+        token: Apify API token.
+        keyword: WB search query (e.g. "телевизор Haier 55").
 
     Returns:
         dict with keys: run_id, dataset_id, status
@@ -18,13 +22,13 @@ async def start_actor_run(token: str, urls: list[str]) -> dict:
     """
     endpoint = f"{BASE_URL}/acts/{ACTOR_ID}/runs"
     headers = {"Authorization": f"Bearer {token}"}
-    payload = {"startUrls": [{"url": u} for u in urls]}
+    payload = {"keyword": keyword}
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(endpoint, headers=headers, json=payload)
 
     if response.status_code == 401:
-        raise RuntimeError(f"Apify authentication failed: 401 Unauthorized")
+        raise RuntimeError("Apify authentication failed: 401 Unauthorized")
 
     response.raise_for_status()
     data = response.json()["data"]

@@ -22,50 +22,52 @@ logger = logging.getLogger(__name__)
 _active_runs: dict[str, dict] = {}
 
 
-def _extract_article(url: str) -> str | None:
-    match = re.search(r"/catalog/(\d+)", url)
-    return match.group(1) if match else None
+def _parse_price(raw: str) -> int | None:
+    """Extract integer price from scrapestorm format like '29 398 ₽'."""
+    digits = re.sub(r"[^\d]", "", str(raw))
+    return int(digits) if digits else None
 
 
 def _save_apify_results(items: list[dict], db: Session) -> int:
+    """Save all scrapestorm results: auto-create Products, Sellers, write prices."""
     written = 0
     for item in items:
-        url = item.get("url", "")
-        article = _extract_article(url)
+        article = str(item.get("product_id", ""))
         if not article:
-            logger.warning(f"Could not extract article from URL: {url}")
             continue
 
-        price = item.get("price") or item.get("salePriceU")
+        price = _parse_price(item.get("current_price", ""))
         if not price:
             logger.warning(f"No price for article {article}")
             continue
 
-        supplier_name = item.get("supplierName", "Unknown")
-        supplier_id = str(item.get("supplierId", ""))
-
         product = db.query(Product).filter(Product.wb_article == article).first()
         if not product:
-            logger.warning(f"Product with article {article} not found in DB")
-            continue
+            product = Product(
+                name=item.get("name", ""),
+                wb_article=article,
+                wb_url=item.get("product_url", ""),
+            )
+            db.add(product)
+            db.flush()
+
+        supplier_name = item.get("supplier", "Unknown")
 
         seller = (
             db.query(Seller)
-            .filter(Seller.product_id == product.id, Seller.seller_id == supplier_id)
+            .filter(Seller.product_id == product.id, Seller.seller_name == supplier_name)
             .first()
         )
         if not seller:
             seller = Seller(
                 product_id=product.id,
                 seller_name=supplier_name,
-                seller_id=supplier_id,
+                seller_id=supplier_name,
             )
             db.add(seller)
             db.flush()
-        elif seller.seller_name != supplier_name:
-            seller.seller_name = supplier_name
 
-        db.add(PriceHistory(seller_id=seller.id, price=int(price)))
+        db.add(PriceHistory(seller_id=seller.id, price=price))
         written += 1
 
     db.commit()
@@ -74,14 +76,12 @@ def _save_apify_results(items: list[dict], db: Session) -> int:
 
 @router.post("/parse/run", response_model=ParseRunOut)
 async def run_parse(db: Session = Depends(get_db)):
-    products = db.query(Product).all()
-    if not products:
-        raise HTTPException(status_code=400, detail="No products to parse")
-
-    urls = [p.wb_url for p in products if p.wb_url]
+    keyword = settings.apify_keyword
+    if not keyword:
+        raise HTTPException(status_code=400, detail="APIFY_KEYWORD not configured")
 
     try:
-        result = await start_actor_run(settings.apify_api_token, urls)
+        result = await start_actor_run(settings.apify_api_token, keyword)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -92,10 +92,12 @@ async def run_parse(db: Session = Depends(get_db)):
         "started_at": datetime.now(timezone.utc),
     }
 
+    existing = db.query(Product).count()
+
     return ParseRunOut(
         run_id=internal_id,
         status="RUNNING",
-        total_products=len(urls),
+        total_products=existing,
     )
 
 

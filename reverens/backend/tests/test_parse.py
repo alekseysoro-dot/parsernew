@@ -15,12 +15,16 @@ def clean_active_runs():
     _active_runs.clear()
 
 
-class TestParseRun:
-    def test_starts_run_and_returns_run_id(self, client, db):
-        product = Product(name="Test Product", wb_url="https://www.wildberries.ru/catalog/12345/detail.aspx", wb_article="12345")
-        db.add(product)
-        db.commit()
+@pytest.fixture(autouse=True)
+def set_apify_keyword():
+    with patch("api.routes.parse.settings") as mock_settings:
+        mock_settings.apify_api_token = "test-token"
+        mock_settings.apify_keyword = "телевизор Haier 55"
+        yield mock_settings
 
+
+class TestParseRun:
+    def test_starts_run_and_returns_run_id(self, client, db, set_apify_keyword):
         mock_result = {"run_id": "run_abc", "dataset_id": "ds_xyz", "status": "RUNNING"}
 
         with patch("api.routes.parse.start_actor_run", new_callable=AsyncMock, return_value=mock_result):
@@ -28,20 +32,16 @@ class TestParseRun:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["run_id"]  # UUID, not empty
+        assert data["run_id"]
         assert data["status"] == "RUNNING"
-        assert data["total_products"] == 1
 
-    def test_returns_error_when_no_products(self, client, db):
+    def test_returns_error_when_no_keyword(self, client, db, set_apify_keyword):
+        set_apify_keyword.apify_keyword = ""
         resp = client.post("/api/parse/run", headers=HEADERS)
         assert resp.status_code == 400
-        assert "No products" in resp.json()["detail"]
+        assert "APIFY_KEYWORD" in resp.json()["detail"]
 
-    def test_returns_error_on_invalid_token(self, client, db):
-        product = Product(name="Test", wb_url="https://www.wildberries.ru/catalog/12345/detail.aspx", wb_article="12345")
-        db.add(product)
-        db.commit()
-
+    def test_returns_error_on_invalid_token(self, client, db, set_apify_keyword):
         with patch("api.routes.parse.start_actor_run", new_callable=AsyncMock, side_effect=RuntimeError("Invalid Apify token")):
             resp = client.post("/api/parse/run", headers=HEADERS)
 
@@ -65,16 +65,7 @@ class TestParseStatus:
         assert resp.status_code == 200
         assert resp.json()["status"] == "RUNNING"
 
-
-    def test_returns_succeeded_and_writes_prices(self, client, db):
-        product = Product(name="Test", wb_url="https://www.wildberries.ru/catalog/12345/detail.aspx", wb_article="12345")
-        db.add(product)
-        db.commit()
-
-        seller = Seller(product_id=product.id, seller_name="Seller A", seller_id="s1")
-        db.add(seller)
-        db.commit()
-
+    def test_returns_succeeded_and_auto_creates_product(self, client, db):
         from api.routes.parse import _active_runs
         _active_runs["test-run-2"] = {
             "apify_run_id": "apify_run_abc",
@@ -84,7 +75,13 @@ class TestParseStatus:
 
         mock_status = {"status": "SUCCEEDED", "dataset_id": "ds_xyz"}
         mock_items = [
-            {"url": "https://www.wildberries.ru/catalog/12345/detail.aspx", "price": 129900, "supplierName": "Seller A", "supplierId": "s1"},
+            {
+                "product_id": "585984247",
+                "name": "Телевизор 55 LED H1",
+                "current_price": "29 398 ₽",
+                "supplier": "Haier Телевизоры",
+                "product_url": "https://www.wildberries.ru/catalog/585984247/detail.aspx",
+            },
         ]
 
         with patch("api.routes.parse.check_run_status", new_callable=AsyncMock, return_value=mock_status), \
@@ -96,10 +93,16 @@ class TestParseStatus:
         assert data["status"] == "SUCCEEDED"
         assert data["updated"] == 1
 
+        product = db.query(Product).filter(Product.wb_article == "585984247").first()
+        assert product is not None
+        assert product.name == "Телевизор 55 LED H1"
+
+        seller = db.query(Seller).filter(Seller.product_id == product.id).first()
+        assert seller.seller_name == "Haier Телевизоры"
+
         prices = db.query(PriceHistory).filter(PriceHistory.seller_id == seller.id).all()
         assert len(prices) == 1
-        assert prices[0].price == 129900
-
+        assert prices[0].price == 29398
 
     def test_returns_404_for_unknown_run(self, client):
         resp = client.get("/api/parse/status/nonexistent", headers=HEADERS)
@@ -120,3 +123,17 @@ class TestParseStatus:
         assert resp.status_code == 200
         assert resp.json()["status"] == "FAILED"
 
+
+class TestParsePrice:
+    def test_parses_price_with_currency(self):
+        from api.routes.parse import _parse_price
+        assert _parse_price("29 398 ₽") == 29398
+
+    def test_parses_price_without_spaces(self):
+        from api.routes.parse import _parse_price
+        assert _parse_price("15000₽") == 15000
+
+    def test_returns_none_for_empty(self):
+        from api.routes.parse import _parse_price
+        assert _parse_price("") is None
+        assert _parse_price("₽") is None

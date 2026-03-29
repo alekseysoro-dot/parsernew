@@ -41,7 +41,7 @@ class TestStartActorRun:
 
             result = await start_actor_run(
                 token="test-token",
-                urls=["https://wildberries.ru/catalog/12345/detail.aspx"],
+                keyword="телевизор Haier 55",
             )
 
         assert result["run_id"] == "run-abc-123"
@@ -61,7 +61,7 @@ class TestStartActorRun:
             MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
 
             with pytest.raises(RuntimeError, match="401"):
-                await start_actor_run(token="bad-token", urls=["https://example.com"])
+                await start_actor_run(token="bad-token", keyword="test")
 
 
 # ---------------------------------------------------------------------------
@@ -104,8 +104,8 @@ class TestFetchDatasetItems:
         from api.apify_client import fetch_dataset_items
 
         items = [
-            {"url": "https://wildberries.ru/catalog/1", "price": 999},
-            {"url": "https://wildberries.ru/catalog/2", "price": 1299},
+            {"product_id": "12345", "current_price": "29 398 ₽", "supplier": "Test Seller"},
+            {"product_id": "67890", "current_price": "15 000 ₽", "supplier": "Other Seller"},
         ]
         mock_resp = _make_response(200, items)
 
@@ -121,4 +121,4 @@ class TestFetchDatasetItems:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        assert result[0]["price"] == 999
+        assert result[0]["current_price"] == "29 398 ₽"
