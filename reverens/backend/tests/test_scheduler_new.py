@@ -1,4 +1,4 @@
-"""Tests for the new scheduler (Apify-based, scrapestorm format)."""
+"""Tests for the scheduler (WB-based)."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -8,46 +8,35 @@ import pytest
 from api.models import PriceHistory, Product, Seller
 
 
+WB_ITEMS = [
+    {
+        "product_id": "585984247",
+        "name": "Телевизор 55 LED H1",
+        "current_price": 29398,
+        "supplier": "Haier Телевизоры",
+        "product_url": "https://www.wildberries.ru/catalog/585984247/detail.aspx",
+    },
+    {
+        "product_id": "678874481",
+        "name": "Телевизор 55 LED H1",
+        "current_price": 27529,
+        "supplier": "ХОЛОДИЛЬНИК.ру GO",
+        "product_url": "https://www.wildberries.ru/catalog/678874481/detail.aspx",
+    },
+]
+
+
 class TestScheduledParse:
     def test_auto_creates_products_and_writes_prices(self, db):
-        """Scheduler should auto-create Products from Apify results."""
-        mock_start = AsyncMock(return_value={
-            "run_id": "run_1",
-            "dataset_id": "ds_1",
-            "status": "RUNNING",
-        })
-        mock_check = AsyncMock(side_effect=[
-            {"status": "RUNNING", "dataset_id": "ds_1"},
-            {"status": "SUCCEEDED", "dataset_id": "ds_1"},
-        ])
-        mock_items = AsyncMock(return_value=[
-            {
-                "product_id": "585984247",
-                "name": "Телевизор 55 LED H1",
-                "current_price": "29 398 ₽",
-                "supplier": "Haier Телевизоры",
-                "product_url": "https://www.wildberries.ru/catalog/585984247/detail.aspx",
-            },
-            {
-                "product_id": "678874481",
-                "name": "Телевизор 55 LED H1",
-                "current_price": "27 529 ₽",
-                "supplier": "ХОЛОДИЛЬНИК.ру GO",
-                "product_url": "https://www.wildberries.ru/catalog/678874481/detail.aspx",
-            },
-        ])
+        mock_search = AsyncMock(return_value=WB_ITEMS)
 
         original_close = db.close
         db.close = lambda: None
 
         with patch("api.scheduler.settings") as mock_settings, \
-             patch("api.scheduler.start_actor_run", mock_start), \
-             patch("api.scheduler.check_run_status", mock_check), \
-             patch("api.scheduler.fetch_dataset_items", mock_items), \
-             patch("api.scheduler.SessionLocal", return_value=db), \
-             patch("api.scheduler.asyncio.sleep", new_callable=AsyncMock):
+             patch("api.scheduler.search_wb", mock_search), \
+             patch("api.scheduler.SessionLocal", return_value=db):
 
-            mock_settings.apify_api_token = "test-token"
             mock_settings.apify_keyword = "телевизор Haier 55"
 
             from api.scheduler import scheduled_parse
