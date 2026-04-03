@@ -22,7 +22,7 @@ async def lifespan(app):
     from api.scheduler import cleanup_old_prices, scheduled_parse
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(scheduled_parse, "interval", hours=12)
+    scheduler.add_job(scheduled_parse, "interval", hours=3)
     scheduler.add_job(cleanup_old_prices, "cron", hour=3, minute=0)
     scheduler.start()
     yield

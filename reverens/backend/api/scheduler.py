@@ -1,6 +1,6 @@
 """
 APScheduler tasks:
-- scheduled_parse: every 12 hours — search WB, write prices to DB
+- scheduled_parse: every 3 hours — search WB, write prices to DB
 - cleanup_old_prices: daily at 03:00 — delete records older than 180 days
 """
 

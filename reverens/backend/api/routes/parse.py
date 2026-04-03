@@ -83,7 +83,7 @@ async def run_parse(body: ParseRunIn = None, db: Session = Depends(get_db)):
     try:
         items = await search_wb(keyword)
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
 
     updated = _save_results(items, db)
 
