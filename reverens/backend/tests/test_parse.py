@@ -52,7 +52,7 @@ class TestParseRun:
         with patch("api.routes.parse.search_wb", new_callable=AsyncMock, side_effect=RuntimeError("WB API rate limit (429)")):
             resp = client.post("/api/parse/run", headers=HEADERS)
 
-        assert resp.status_code == 502
+        assert resp.status_code == 503
         assert "429" in resp.json()["detail"]
 
     def test_saves_products_on_run(self, client, db, set_keyword):

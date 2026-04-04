@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from api.config import settings
 from api.db import Base, engine
-from api.routes import export, imports, parse, prices, products, settings as settings_router
+from api.routes import export, imports, keywords, parse, prices, products, settings as settings_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -54,6 +54,7 @@ app.include_router(imports.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 app.include_router(parse.router, prefix="/api")
+app.include_router(keywords.router, prefix="/api")
 
 
 @app.get("/health")

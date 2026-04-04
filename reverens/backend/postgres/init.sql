@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS price_history (
     recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS keywords (
+    id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    keyword     TEXT NOT NULL,
+    category    TEXT,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS notification_settings (
     id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     email       TEXT,

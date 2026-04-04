@@ -76,6 +76,23 @@ class SettingsUpdate(BaseModel):
     threshold: int = 5
 
 
+# ── Keywords ─────────────────────────────────────────────────────────────────
+
+class KeywordCreate(BaseModel):
+    keyword: str
+    category: str | None = None
+
+
+class KeywordOut(BaseModel):
+    id: str
+    keyword: str
+    category: str | None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # ── Parse ────────────────────────────────────────────────────────────────────
 
 class ParseRunIn(BaseModel):

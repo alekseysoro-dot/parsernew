@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from api.models import PriceHistory, Product, Seller
+from api.models import Keyword, PriceHistory, Product, Seller
 
 
 WB_ITEMS = [
@@ -27,7 +27,37 @@ WB_ITEMS = [
 
 
 class TestScheduledParse:
-    def test_auto_creates_products_and_writes_prices(self, db):
+    def test_uses_keywords_from_db(self, db):
+        """Scheduler picks active keywords from DB."""
+        db.add(Keyword(keyword="телевизор Haier 55", is_active=True))
+        db.add(Keyword(keyword="inactive keyword", is_active=False))
+        db.commit()
+
+        mock_search = AsyncMock(return_value=WB_ITEMS)
+
+        original_close = db.close
+        db.close = lambda: None
+
+        with patch("api.scheduler.search_wb", mock_search), \
+             patch("api.scheduler.SessionLocal", return_value=db), \
+             patch("api.scheduler.asyncio.sleep", new_callable=AsyncMock):
+
+            from api.scheduler import scheduled_parse
+            asyncio.run(scheduled_parse())
+
+        db.close = original_close
+
+        mock_search.assert_called_once_with("телевизор Haier 55")
+
+        products = db.query(Product).all()
+        assert len(products) == 2
+
+        prices = db.query(PriceHistory).all()
+        assert len(prices) == 2
+        assert {p.price for p in prices} == {29398, 27529}
+
+    def test_falls_back_to_env_keyword(self, db):
+        """When no keywords in DB, uses APIFY_KEYWORD from .env."""
         mock_search = AsyncMock(return_value=WB_ITEMS)
 
         original_close = db.close
@@ -37,19 +67,14 @@ class TestScheduledParse:
              patch("api.scheduler.search_wb", mock_search), \
              patch("api.scheduler.SessionLocal", return_value=db):
 
-            mock_settings.apify_keyword = "телевизор Haier 55"
+            mock_settings.apify_keyword = "fallback keyword"
 
             from api.scheduler import scheduled_parse
             asyncio.run(scheduled_parse())
 
         db.close = original_close
 
-        products = db.query(Product).all()
-        assert len(products) == 2
-
-        prices = db.query(PriceHistory).all()
-        assert len(prices) == 2
-        assert {p.price for p in prices} == {29398, 27529}
+        mock_search.assert_called_once_with("fallback keyword")
 
 
 class TestCleanupOldPrices:

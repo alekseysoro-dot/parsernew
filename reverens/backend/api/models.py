@@ -52,6 +52,16 @@ class PriceHistory(Base):
     seller: Mapped["Seller"] = relationship("Seller", back_populates="price_history")
 
 
+class Keyword(Base):
+    __tablename__ = "keywords"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    keyword: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class NotificationSettings(Base):
     __tablename__ = "notification_settings"
 

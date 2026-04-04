@@ -1,20 +1,23 @@
 """
 APScheduler tasks:
-- scheduled_parse: every 3 hours — search WB, write prices to DB
+- scheduled_parse: every 3 hours — search WB for all active keywords, write prices to DB
 - cleanup_old_prices: daily at 03:00 — delete records older than 180 days
 """
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
 
 from api.config import settings
 from api.db import SessionLocal
-from api.models import PriceHistory, Product, Seller
+from api.models import Keyword, PriceHistory, Product, Seller
 from api.notifier import check_price_alerts
 from api.wb_client import search_wb
 
 logger = logging.getLogger(__name__)
+
+PAUSE_BETWEEN_KEYWORDS = 60
 
 
 def _parse_price(raw) -> int | None:
@@ -24,18 +27,35 @@ def _parse_price(raw) -> int | None:
 
 
 async def scheduled_parse() -> None:
-    """Search WB by keyword and write prices to DB."""
-    keyword = settings.apify_keyword
-    if not keyword:
-        logger.warning("APIFY_KEYWORD not configured, skipping scheduled parse")
-        return
-
+    """Search WB for all active keywords and write prices to DB."""
     db = SessionLocal()
     try:
-        logger.info(f"Starting scheduled parse with keyword: {keyword}")
-        items = await search_wb(keyword)
-        written = _save_prices(items, db)
-        logger.info(f"Scheduled parse complete: {written} prices written")
+        kw_list = db.query(Keyword).filter(Keyword.is_active.is_(True)).all()
+        keyword_strings = [kw.keyword for kw in kw_list]
+
+        if not keyword_strings and settings.apify_keyword:
+            keyword_strings = [settings.apify_keyword]
+
+        if not keyword_strings:
+            logger.warning("No keywords configured, skipping scheduled parse")
+            return
+
+        total_written = 0
+        for i, keyword in enumerate(keyword_strings):
+            if i > 0:
+                logger.info(f"Pausing {PAUSE_BETWEEN_KEYWORDS}s before next keyword...")
+                await asyncio.sleep(PAUSE_BETWEEN_KEYWORDS)
+
+            try:
+                logger.info(f"Parsing keyword {i+1}/{len(keyword_strings)}: {keyword}")
+                items = await search_wb(keyword)
+                written = _save_prices(items, db)
+                total_written += written
+                logger.info(f"Keyword '{keyword}': {written} prices written")
+            except Exception:
+                logger.exception(f"Error parsing keyword '{keyword}', continuing...")
+
+        logger.info(f"Scheduled parse complete: {total_written} prices for {len(keyword_strings)} keywords")
 
         try:
             alerts = check_price_alerts(db)
