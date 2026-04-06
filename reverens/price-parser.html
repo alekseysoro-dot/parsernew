@@ -626,27 +626,6 @@ tbody tr:last-child td { border-bottom: none; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-.feed-box {
-  border: 1px solid var(--accent-border);
-  background: var(--accent-dim);
-  padding: 14px; margin-bottom: 16px;
-}
-
-.feed-box-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px; color: var(--accent);
-  text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px;
-}
-
-.divider-or {
-  display: flex; align-items: center; gap: 12px;
-  margin: 16px 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px; color: var(--text2); text-transform: uppercase;
-}
-.divider-or::before, .divider-or::after {
-  content: ''; flex: 1; height: 1px; background: var(--border);
-}
 
 /* ── Settings Modal ── */
 .settings-overlay {
@@ -753,12 +732,6 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="status-dot"></span>
       WB · Активен
     </div>
-    <button class="btn btn-primary" onclick="openModal()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      Добавить товар
-    </button>
   </div>
 </header>
 
@@ -1070,65 +1043,6 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
-<!-- Add Product Modal -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <span class="modal-title">Добавить товар</span>
-      <button class="drawer-close" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <!-- Feed import -->
-      <div class="feed-box">
-        <div class="feed-box-label">↓ Импорт через фид WB</div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <label class="form-label">URL фида</label>
-          <input type="text" class="form-input" id="feedInput"
-            placeholder="https://www.wildberries.ru/catalog/...">
-          <div class="form-hint">Вставьте ссылку на категорию, бренд или поиск WB — товары загрузятся автоматически</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="importFeed()">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          Загрузить из фида
-        </button>
-      </div>
-
-      <div class="divider-or">или вручную</div>
-
-      <div class="form-group">
-        <label class="form-label">Название товара <span style="color:var(--red)">*</span></label>
-        <input type="text" class="form-input" placeholder="iPhone 15 Pro 256GB" id="nameInput">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">SKU / Артикул</label>
-          <input type="text" class="form-input" placeholder="APL-15P-256" id="skuInput">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Категория</label>
-          <select class="form-select" id="catInput">
-            <option value="Электроника">Электроника</option>
-            <option value="Одежда">Одежда</option>
-            <option value="Бытовая техника">Бытовая техника</option>
-            <option value="Красота">Красота</option>
-            <option value="Продукты">Продукты</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Целевая цена (₽)</label>
-        <input type="number" class="form-input" placeholder="50000" id="targetInput">
-        <div class="form-hint">Уведомим, когда цена достигнет этого значения</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal()">Отмена</button>
-      <button class="btn btn-primary" onclick="addProduct()">Добавить</button>
-    </div>
-  </div>
-</div>
 
 <!-- Keyword Modal -->
 <div class="modal-overlay" id="keywordModalOverlay" onclick="closeKeywordModal(event)">
@@ -1307,7 +1221,7 @@ function renderTable() {
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <p>Нет товаров</p>
-        <button class="btn btn-primary btn-sm" onclick="openModal()">+ Добавить первый</button>
+        <button class="btn btn-primary btn-sm" onclick="openKeywordModal()">+ Добавить ключевое слово</button>
       </div>
     </td></tr>`;
     return;
@@ -1521,98 +1435,6 @@ async function deleteProduct(idx) {
   showToast('Товар удалён');
 }
 
-async function addProduct() {
-  const name   = document.getElementById('nameInput').value.trim();
-  const sku    = document.getElementById('skuInput').value.trim() || 'SKU-' + Date.now().toString().slice(-4);
-  const cat    = document.getElementById('catInput').value;
-  const target = parseInt(document.getElementById('targetInput').value) || 0;
-  const url    = document.getElementById('urlInput')?.value.trim() || '';
-
-  if (!name) { showToast('Введите название товара'); return; }
-
-  // Try API first
-  if (API_KEY && url) {
-    try {
-      const resp = await fetch(`${API_BASE}/api/products`, {
-        method: 'POST',
-        headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, wb_url: url }),
-      });
-      if (resp.ok) {
-        closeModal();
-        await loadProducts();
-        showToast(`"${name}" добавлен`);
-        document.getElementById('nameInput').value = '';
-        document.getElementById('skuInput').value  = '';
-        document.getElementById('targetInput').value = '';
-        if (document.getElementById('urlInput')) document.getElementById('urlInput').value = '';
-        return;
-      }
-    } catch (e) { /* fallback to local */ }
-  }
-
-  // Fallback: local mock
-  const mockPrice = Math.round(Math.random() * 50000 + 3000);
-  products.push({
-    name, sku, cat,
-    emoji: '📦',
-    price: mockPrice, oldPrice: mockPrice, minPrice: mockPrice,
-    targetPrice: target || Math.round(mockPrice * 0.9),
-    change: 0,
-    time: 'только что',
-    url: url,
-  });
-
-  saveProducts();
-  closeModal();
-  updateStats();
-  renderTable();
-  showToast(`"${name}" добавлен`);
-  document.getElementById('nameInput').value = '';
-  document.getElementById('skuInput').value  = '';
-  document.getElementById('targetInput').value = '';
-  if (document.getElementById('urlInput')) document.getElementById('urlInput').value = '';
-}
-
-// ── Feed import (mock) ──
-function importFeed() {
-  const url = document.getElementById('feedInput').value.trim();
-  if (!url || !url.includes('wildberries')) {
-    showToast('Введите URL страницы Wildberries');
-    return;
-  }
-
-  const btn = document.querySelector('.feed-box .btn-primary');
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;"></span> Загрузка...';
-  btn.disabled = true;
-
-  setTimeout(() => {
-    const feedItems = [
-      { name: 'Товар из фида 1', sku: 'FEED-001', cat: 'Электроника', emoji: '📦', price: Math.round(Math.random()*30000+2000) },
-      { name: 'Товар из фида 2', sku: 'FEED-002', cat: 'Электроника', emoji: '📦', price: Math.round(Math.random()*30000+2000) },
-      { name: 'Товар из фида 3', sku: 'FEED-003', cat: 'Электроника', emoji: '📦', price: Math.round(Math.random()*30000+2000) },
-    ];
-
-    feedItems.forEach(item => {
-      products.push({
-        ...item, oldPrice: item.price, minPrice: item.price,
-        targetPrice: Math.round(item.price * 0.9),
-        change: 0, time: 'только что', url,
-      });
-    });
-
-    saveProducts();
-    btn.innerHTML = orig;
-    btn.disabled = false;
-    document.getElementById('feedInput').value = '';
-    closeModal();
-    updateStats();
-    renderTable();
-    showToast(`Импортировано ${feedItems.length} товара из фида`);
-  }, 1500);
-}
-
 // ── Parsing ──
 async function startParsing() {
   if (!API_KEY) { showToast('Введите API ключ в настройках'); return; }
@@ -1695,12 +1517,6 @@ function exportCSV() {
   showToast('Файл скачан — откройте в Excel');
 }
 
-// ── Modal ──
-function openModal() { document.getElementById('modalOverlay').classList.add('active'); }
-function closeModal(e) {
-  if (!e || e.target === document.getElementById('modalOverlay'))
-    document.getElementById('modalOverlay').classList.remove('active');
-}
 
 // ── Settings ──
 function openSettings() {
