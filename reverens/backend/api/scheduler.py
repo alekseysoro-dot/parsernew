@@ -41,6 +41,9 @@ async def scheduled_parse() -> None:
             return
 
         total_written = 0
+        # Build keyword -> category map
+        kw_categories = {kw.keyword: kw.category for kw in kw_list}
+
         for i, keyword in enumerate(keyword_strings):
             if i > 0:
                 logger.info(f"Pausing {PAUSE_BETWEEN_KEYWORDS}s before next keyword...")
@@ -49,7 +52,7 @@ async def scheduled_parse() -> None:
             try:
                 logger.info(f"Parsing keyword {i+1}/{len(keyword_strings)}: {keyword}")
                 items = await search_wb(keyword)
-                written = _save_prices(items, db)
+                written = _save_prices(items, db, group_name=kw_categories.get(keyword))
                 total_written += written
                 logger.info(f"Keyword '{keyword}': {written} prices written")
             except Exception:
@@ -71,7 +74,7 @@ async def scheduled_parse() -> None:
         db.close()
 
 
-def _save_prices(items: list[dict], db) -> int:
+def _save_prices(items: list[dict], db, group_name: str | None = None) -> int:
     """Save WB search results: auto-create Products, Sellers, write prices."""
     written = 0
     for item in items:
@@ -90,6 +93,7 @@ def _save_prices(items: list[dict], db) -> int:
                 name=item.get("name", ""),
                 wb_article=article,
                 wb_url=item.get("product_url", ""),
+                group_name=group_name,
             )
             db.add(product)
             db.flush()

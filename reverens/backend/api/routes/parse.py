@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from api.config import settings
 from api.db import get_db
-from api.models import Product, PriceHistory, Seller
+from api.models import Product, PriceHistory, Seller, Keyword
 from api.notifier import check_price_alerts
 from api.schemas import ParseRunIn, ParseRunOut, ParseStatusOut
 from api.wb_client import search_wb
@@ -28,7 +28,7 @@ def _parse_price(raw) -> int | None:
     return int(digits) if digits else None
 
 
-def _save_results(items: list[dict], db: Session) -> int:
+def _save_results(items: list[dict], db: Session, group_name: str | None = None) -> int:
     """Save WB search results: auto-create Products, Sellers, write prices."""
     written = 0
     for item in items:
@@ -47,6 +47,7 @@ def _save_results(items: list[dict], db: Session) -> int:
                 name=item.get("name", ""),
                 wb_article=article,
                 wb_url=item.get("product_url", ""),
+                group_name=group_name,
             )
             db.add(product)
             db.flush()
@@ -80,12 +81,16 @@ async def run_parse(body: ParseRunIn = None, db: Session = Depends(get_db)):
     if not keyword:
         raise HTTPException(status_code=400, detail="Keyword not provided and APIFY_KEYWORD not configured")
 
+    # Look up category from keywords table
+    kw_row = db.query(Keyword).filter(Keyword.keyword == keyword).first()
+    group_name = kw_row.category if kw_row else None
+
     try:
         items = await search_wb(keyword)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    updated = _save_results(items, db)
+    updated = _save_results(items, db, group_name=group_name)
 
     try:
         alerts = check_price_alerts(db)
