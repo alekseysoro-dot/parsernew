@@ -1128,14 +1128,6 @@ function saveProducts() {
   localStorage.setItem('pp_products', JSON.stringify(products));
 }
 
-// ── WB Sellers mock ──
-const WB_SELLERS = [
-  { name: 'Продавец WB Official', mult: 1.00 },
-  { name: 'ТехноМаркет', mult: 1.03 },
-  { name: 'GadgetPro', mult: 1.06 },
-  { name: 'МегаТехно', mult: 1.09 },
-  { name: 'Электроника24', mult: 1.13 },
-];
 
 // ── Format ──
 function formatPrice(n) {
@@ -1333,16 +1325,27 @@ async function openDrawer(idx) {
   }
   renderChart(document.getElementById('drawerChart'), chartData || generateMockHistory(p.price || 10000));
 
-  // Sellers
-  const html = WB_SELLERS.map((s, i) => {
-    const sp = Math.round(p.price * s.mult);
-    const best = i === 0;
-    return `<div class="seller-price-row ${best ? 'best' : ''}">
-      <span class="seller-price-name">${esc(s.name)}</span>
-      <span class="seller-price-val">${formatPrice(sp)}</span>
-    </div>`;
-  }).join('');
-  document.getElementById('drawerSellerPrices').innerHTML = html;
+  // Sellers — load from API
+  let sellersHtml = '<div style="color:var(--text2);font-size:12px;">Нет данных</div>';
+  if (API_KEY && p.id) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/prices/${p.id}`, { headers: API_HEADERS });
+      if (resp.ok) {
+        const sellers = await resp.json();
+        if (sellers.length > 0) {
+          sellers.sort((a, b) => a.latest_price - b.latest_price);
+          sellersHtml = sellers.map((s, i) => {
+            const delta = s.delta_pct != null ? ` (${s.delta_pct > 0 ? '+' : ''}${s.delta_pct}%)` : '';
+            return `<div class="seller-price-row ${i === 0 ? 'best' : ''}">
+              <span class="seller-price-name">${esc(s.seller_name)}</span>
+              <span class="seller-price-val">${formatPrice(s.latest_price)}${delta}</span>
+            </div>`;
+          }).join('');
+        }
+      }
+    } catch (e) { console.error('Failed to load sellers:', e); }
+  }
+  document.getElementById('drawerSellerPrices').innerHTML = sellersHtml;
 
   // Open button
   const openBtn = document.getElementById('drawerOpenBtn');
