@@ -401,6 +401,7 @@ thead th {
   font-weight: 400;
   user-select: none;
 }
+thead th[onclick]:hover { color: var(--accent); }
 
 tbody tr { transition: background 0.08s; cursor: pointer; }
 tbody tr:hover { background: var(--surface2); }
@@ -890,9 +891,9 @@ tbody tr:last-child td { border-bottom: none; }
         <thead>
           <tr>
             <th>Товар</th>
-            <th>Текущая цена</th>
-            <th>Мин. цена</th>
-            <th>Изменение</th>
+            <th style="cursor:pointer;user-select:none" onclick="toggleSort('price')">Текущая цена <span id="sortArrow_price"></span></th>
+            <th style="cursor:pointer;user-select:none" onclick="toggleSort('minPrice')">Мин. цена <span id="sortArrow_minPrice"></span></th>
+            <th style="cursor:pointer;user-select:none" onclick="toggleSort('change')">Изменение <span id="sortArrow_change"></span></th>
             <th>Обновление</th>
             <th></th>
           </tr>
@@ -1103,6 +1104,8 @@ let currentStore = 'all';
 let currentQuickFilter = 'all'; // 'all' | 'down' | 'up'
 let currentCat = '';
 let parsingInterval = null;
+let sortCol = null;   // 'price' | 'minPrice' | 'change' | null
+let sortDir = 'desc'; // 'asc' | 'desc'
 
 // ── Products ──
 const DEFAULT_PRODUCTS = [
@@ -1197,6 +1200,21 @@ function updateStats() {
 }
 
 // ── Table ──
+function toggleSort(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'desc';
+  }
+  // Update arrows
+  ['price', 'minPrice', 'change'].forEach(c => {
+    const el = document.getElementById('sortArrow_' + c);
+    if (el) el.textContent = sortCol === c ? (sortDir === 'asc' ? '▲' : '▼') : '';
+  });
+  renderTable();
+}
+
 function renderTable() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const tbody = document.getElementById('tableBody');
@@ -1210,6 +1228,14 @@ function renderTable() {
     const matchCat    = !currentCat || p.cat === currentCat;
     return matchStore && matchSearch && matchFilter && matchCat;
   });
+
+  if (sortCol) {
+    filtered.sort((a, b) => {
+      const va = a[sortCol] || 0;
+      const vb = b[sortCol] || 0;
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6">
