@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api.db import get_db
-from api.models import Keyword
+from api.models import Keyword, Product, Seller, PriceHistory
 from api.schemas import KeywordCreate, KeywordOut
 
 router = APIRouter()
@@ -32,6 +32,19 @@ def delete_keyword(keyword_id: str, db: Session = Depends(get_db)):
     kw = db.query(Keyword).filter(Keyword.id == keyword_id).first()
     if not kw:
         raise HTTPException(status_code=404, detail="Keyword not found")
+
+    # Cascade delete products with matching category
+    if kw.category:
+        products = db.query(Product).filter(Product.group_name == kw.category).all()
+        for product in products:
+            db.query(PriceHistory).filter(
+                PriceHistory.seller_id.in_(
+                    db.query(Seller.id).filter(Seller.product_id == product.id)
+                )
+            ).delete(synchronize_session=False)
+            db.query(Seller).filter(Seller.product_id == product.id).delete(synchronize_session=False)
+            db.delete(product)
+
     db.delete(kw)
     db.commit()
 
