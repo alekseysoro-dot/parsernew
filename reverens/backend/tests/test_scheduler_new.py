@@ -56,25 +56,23 @@ class TestScheduledParse:
         assert len(prices) == 2
         assert {p.price for p in prices} == {29398, 27529}
 
-    def test_falls_back_to_env_keyword(self, db):
-        """When no keywords in DB, uses APIFY_KEYWORD from .env."""
+    def test_skips_when_no_keywords(self, db):
+        """When no active keywords in DB, scheduler does nothing (no env fallback)."""
         mock_search = AsyncMock(return_value=WB_ITEMS)
 
         original_close = db.close
         db.close = lambda: None
 
-        with patch("api.scheduler.settings") as mock_settings, \
-             patch("api.scheduler.search_wb", mock_search), \
+        with patch("api.scheduler.search_wb", mock_search), \
              patch("api.scheduler.SessionLocal", return_value=db):
-
-            mock_settings.apify_keyword = "fallback keyword"
 
             from api.scheduler import scheduled_parse
             asyncio.run(scheduled_parse())
 
         db.close = original_close
 
-        mock_search.assert_called_once_with("fallback keyword")
+        mock_search.assert_not_called()
+        assert db.query(Product).count() == 0
 
 
 class TestCleanupOldPrices:

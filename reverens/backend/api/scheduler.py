@@ -9,7 +9,6 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from api.config import settings
 from api.db import SessionLocal
 from api.models import Keyword, PriceHistory, Product, Seller
 from api.notifier import check_price_alerts
@@ -33,11 +32,8 @@ async def scheduled_parse() -> None:
         kw_list = db.query(Keyword).filter(Keyword.is_active.is_(True)).all()
         keyword_strings = [kw.keyword for kw in kw_list]
 
-        if not keyword_strings and settings.apify_keyword:
-            keyword_strings = [settings.apify_keyword]
-
         if not keyword_strings:
-            logger.warning("No keywords configured, skipping scheduled parse")
+            logger.info("No active keywords, skipping scheduled parse")
             return
 
         total_written = 0
